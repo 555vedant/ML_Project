@@ -100,6 +100,17 @@ def run_all_models(csv_path):
     report_svm, _, _, f1_svm, _ = classification_report_custom(y_test, y_pred_svm, class_names=[k for k,v in sorted(label_map.items(), key=lambda x:x[1])])
     results['LinearSVM_OvR'] = {'acc':acc_svm, 'time': t1-t0, 'y_pred':y_pred_svm, 'report':report_svm, 'f1':f1_svm}
 
+    # Logistic Regression (multiclass softmax) from-scratch
+    print("Training Logistic Regression (multiclass softmax, from-scratch)...")
+    t0 = time.time()
+    logreg = LogisticRegressionCustom(lr=0.02, reg_lambda=0.001, epochs=500, batch_size=64, decay=0.005, random_state=42)
+    logreg.fit(X_train, y_train)
+    t1 = time.time()
+    y_pred_log = logreg.predict(X_test)
+    acc_log = np.mean(y_test == y_pred_log)
+    report_log, _, _, f1_log, _ = classification_report_custom(y_test, y_pred_log, class_names=[k for k,v in sorted(label_map.items(), key=lambda x:x[1])])
+    results['LogisticRegression'] = {'acc':acc_log, 'time': t1-t0, 'y_pred':y_pred_log, 'report':report_log, 'f1':f1_log}
+
     # Summaries
     print("\nSUMMARY:")
     for name, info in results.items():
@@ -144,19 +155,33 @@ def run_all_models(csv_path):
     f1_path = os.path.join(OUTPUT_DIR, "per_class_f1.png")
     fig.savefig(f1_path, bbox_inches='tight'); plt.close(fig)
 
-    # Confusion matrices
-    n = len(names); cols = 2; rows = (n+1)//cols
-    fig, axes = plt.subplots(rows, cols, figsize=(12, 4*rows))
-    axes = axes.flatten()
+    # Confusion matrices (improved layout to avoid overlapping titles/labels)
+    n = len(names)
+    cols = 3 if n >= 3 else max(1, n)
+    rows = (n + cols - 1) // cols
+    fig, axes = plt.subplots(rows, cols, figsize=(5*cols, 4.5*rows), constrained_layout=True)
+    axes = np.atleast_1d(axes).ravel()
     for i, name in enumerate(names):
         ax = axes[i]
         cm = np.zeros((len(label_map), len(label_map)), dtype=int)
         pred = results[name]['y_pred']
-        for t,p in zip(y_test, pred):
+        for t, p in zip(y_test, pred):
             cm[int(t), int(p)] += 1
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax, xticklabels=classes, yticklabels=classes)
-        ax.set_title(name)
-        ax.set_xlabel('Predicted'); ax.set_ylabel('True')
+        sns.heatmap(
+            cm,
+            annot=True,
+            fmt='d',
+            cmap='Blues',
+            ax=ax,
+            xticklabels=classes,
+            yticklabels=classes,
+            cbar_kws={"shrink": 0.8}
+        )
+        ax.set_title(name, fontsize=12)
+        ax.set_xlabel('Predicted')
+        ax.set_ylabel('True')
+        ax.tick_params(axis='x', labelrotation=30)
+    # Remove any unused subplots
     for j in range(i+1, len(axes)):
         fig.delaxes(axes[j])
     cm_path = os.path.join(OUTPUT_DIR, "confusion_matrices.png")
@@ -168,7 +193,7 @@ def run_all_models(csv_path):
     fi_path = os.path.join(OUTPUT_DIR, "rf_feature_importance.png")
     topk = min(25, len(fi_df))
     fig = plt.figure(figsize=(8,6))
-    import seaborn as sns
+    # seaborn is already imported as `sns` at module level; avoid re-importing locally to prevent scoping issues
     sns.barplot(x='importance', y='feature', data=fi_df.head(topk))
     plt.title("Permutation Feature Importance (Random Forest)")
     fig.savefig(fi_path, bbox_inches='tight'); plt.close(fig)
