@@ -150,19 +150,33 @@ def run_all_models(csv_path):
     f1_path = os.path.join(OUTPUT_DIR, "per_class_f1.png")
     fig.savefig(f1_path, bbox_inches='tight'); plt.close(fig)
 
-    # Confusion matrices
-    n = len(names); cols = 2; rows = (n+1)//cols
-    fig, axes = plt.subplots(rows, cols, figsize=(12, 4*rows))
-    axes = axes.flatten()
+    # Confusion matrices (improved layout to avoid overlapping titles/labels)
+    n = len(names)
+    cols = 3 if n >= 3 else max(1, n)
+    rows = (n + cols - 1) // cols
+    fig, axes = plt.subplots(rows, cols, figsize=(5*cols, 4.5*rows), constrained_layout=True)
+    axes = np.atleast_1d(axes).ravel()
     for i, name in enumerate(names):
         ax = axes[i]
         cm = np.zeros((len(label_map), len(label_map)), dtype=int)
         pred = results[name]['y_pred']
-        for t,p in zip(y_test, pred):
+        for t, p in zip(y_test, pred):
             cm[int(t), int(p)] += 1
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax, xticklabels=classes, yticklabels=classes)
-        ax.set_title(name)
-        ax.set_xlabel('Predicted'); ax.set_ylabel('True')
+        sns.heatmap(
+            cm,
+            annot=True,
+            fmt='d',
+            cmap='Blues',
+            ax=ax,
+            xticklabels=classes,
+            yticklabels=classes,
+            cbar_kws={"shrink": 0.8}
+        )
+        ax.set_title(name, fontsize=12)
+        ax.set_xlabel('Predicted')
+        ax.set_ylabel('True')
+        ax.tick_params(axis='x', labelrotation=30)
+    # Remove any unused subplots
     for j in range(i+1, len(axes)):
         fig.delaxes(axes[j])
     cm_path = os.path.join(OUTPUT_DIR, "confusion_matrices.png")
